@@ -1,7 +1,11 @@
 import javax.swing.*;
+import javax.swing.text.*;
 import java.awt.*;
 import java.io.*;
 import java.net.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 
 /**
  * The ChatUI class represents a client-side chat application implemented with a graphical
@@ -21,11 +25,15 @@ import java.net.*;
  */
 public class ChatUI {
     public static final String server_address = "localhost";
+    public Map<String, Style> userStyles = new HashMap<>();
     public static final int server_port = 5000;
     public String name;
 
     private JFrame frame;
-    private JTextArea chatArea;
+    private JTextPane chatArea;
+    private StyledDocument doc;
+    private Map<String, Color> userColors = new HashMap<>();
+    private Random random = new Random();
     private JTextField textField;
     private PrintWriter out;
 
@@ -38,6 +46,38 @@ public class ChatUI {
      */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new ChatUI().createUI());
+    }
+
+    private Color getUserColor(String user) {
+        return userColors.computeIfAbsent(user, k -> new Color(random.nextInt(256),
+                random.nextInt(256), random.nextInt(256)));
+    }
+
+    private void appendMessageWithColor(String message) {
+        try {
+            int sep = message.indexOf(':');
+            if (sep != -1) {
+                String user = message.substring(0, sep);
+                String msg = message.substring(sep + 2);
+
+                Style style = chatArea.addStyle(user, null);
+                StyleConstants.setForeground(style, getUserColor(user));
+                doc.insertString(doc.getLength(), user + ": ", style);
+                doc.insertString(doc.getLength(), msg + "\n", null);
+            } else {
+                doc.insertString(doc.getLength(), message + "\n", null);
+            }
+        } catch (BadLocationException e) {
+            System.out.println("Error: " + e);
+        }
+    }
+
+    private void appendMessage(String message) {
+        try {
+            doc.insertString(doc.getLength(), message + "\n", null);
+        } catch (BadLocationException e) {
+            System.out.println("Error: " + e);
+        }
     }
 
     /**
@@ -66,11 +106,15 @@ public class ChatUI {
         }
 
         frame = new JFrame("Chat Client - " + name);
-        chatArea = new JTextArea(20, 40);
+        frame.setLocationRelativeTo(null);
+        chatArea = new JTextPane();
         textField = new JTextField();
 
         chatArea.setEditable(false);
+        doc = chatArea.getStyledDocument();
+
         JScrollPane scrollPane = new JScrollPane(chatArea);
+        scrollPane.setPreferredSize(new Dimension(300, 400));
 
         textField.addActionListener(e -> sendMessage());
         frame.add(scrollPane, BorderLayout.CENTER);
@@ -112,15 +156,16 @@ public class ChatUI {
                 try {
                     String message;
                     while ((message = in.readLine()) != null) {
-                        chatArea.append(message + "\n");
+                        String finalMessage = message;
+                        SwingUtilities.invokeLater(() -> appendMessageWithColor(finalMessage));
                     }
                 } catch (IOException e) {
-                    chatArea.append("Error: " + e + "\n");
+                    SwingUtilities.invokeLater(() -> appendMessage("Error: " + e));
                 }
             }).start();
 
         } catch (IOException e) {
-            chatArea.append("Error: " + e + "\n");
+            SwingUtilities.invokeLater(() -> appendMessage("Error: " + e));
         }
     }
 
