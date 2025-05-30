@@ -14,6 +14,7 @@ import java.util.*;
  */
 public class ChatServer {
     private static final Set<PrintWriter> clientWriters = Collections.synchronizedSet(new HashSet<>());
+    private static Map<Socket, String> clientsNames = new HashMap<>();
     private static int clientCount = 0;
 
     /**
@@ -34,7 +35,7 @@ public class ChatServer {
                 // Wait for a client to connect
                 Socket s = serverSocket.accept();
                 clientCount++;
-                new ClientHandler(s, "Client-" + clientCount).start();
+                new ClientHandler(s).start();
             }
         } catch (IOException e) {
             System.out.println("Error: " + e);
@@ -55,10 +56,10 @@ public class ChatServer {
      */
     private static class ClientHandler extends Thread {
         // The client socket and output streams
-        private String clientName;
         private final Socket socket;
         private PrintWriter out;
         private BufferedReader in;
+
 
         /**
          * Constructs a new ClientHandler instance and initializes it with the specified
@@ -67,9 +68,8 @@ public class ChatServer {
          *
          * @param socket the socket associated with the connected client
          */
-        public ClientHandler(Socket socket, String clientName) {
+        public ClientHandler(Socket socket) {
             this.socket = socket;
-            this.clientName = clientName;
         }
 
         /**
@@ -98,32 +98,62 @@ public class ChatServer {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(), true);
 
+                String userName = in.readLine();
+
                 // Add the client's writer to the global collection to broadcast messages to all clients
-                clientWriters.add(out);
-                System.out.println(clientName + " connected.");
+                synchronized (clientWriters) {
+                    clientWriters.add(out);
+                }
+
+                synchronized (clientsNames) {
+                    clientsNames.put(socket, userName);
+                }
+
+                broadcast(userName + " has joined the chat.");
 
                 // Read messages from the client and broadcast them to all clients
                 String message;
                 while ((message = in.readLine()) != null) {
-                    System.out.println(clientName + " said: " + message);
-                    for (PrintWriter writer : clientWriters) {
-                        writer.println(clientName + ": " + message);
-                    }
+                    System.out.println("[" + userName + "]: " + message);
+                    broadcast(userName + ": " + message);
                 }
             } catch (IOException e) {
                 System.out.println("Error: " + e);
             } finally {
                 // Cleanup resources and close the client socket
-                try {
-                    if (out != null) {
+                cleanup();
+            }
+        }
+
+        private void broadcast(String message) {
+            synchronized (clientWriters) {
+                for (PrintWriter writer : clientWriters) {
+                    writer.println(message);
+                }
+            }
+        }
+
+        private void cleanup() {
+            try {
+                String name = clientsNames.get(socket);
+                if (name != null) {
+                    broadcast(name + " has left the chat.");
+                    System.out.println(name + " disconnected.");
+                    clientCount--;
+                }
+
+                if (out != null) {
+                    synchronized (clientWriters) {
                         clientWriters.remove(out);
                     }
-
-                    socket.close();
-                    System.out.println(clientName + " disconnected.");
-                } catch (IOException e) {
-                    System.out.println("Error: " + e);
                 }
+
+                synchronized (clientsNames) {
+                    clientsNames.remove(socket);
+                }
+                socket.close();
+            } catch (IOException e) {
+                System.out.println("Error: " + e);
             }
         }
     }

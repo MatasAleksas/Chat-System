@@ -22,6 +22,7 @@ import java.net.*;
 public class ChatUI {
     public static final String server_address = "localhost";
     public static final int server_port = 5000;
+    public String name;
 
     private JFrame frame;
     private JTextArea chatArea;
@@ -59,7 +60,12 @@ public class ChatUI {
      * the client-side chat application.
      */
     private void createUI() {
-        frame = new JFrame("Chat Client");
+        name = JOptionPane.showInputDialog(null, "Enter your name:", "Username", JOptionPane.PLAIN_MESSAGE);
+        if (name == null || name.trim().isEmpty()) {
+            name = "Anonymous";
+        }
+
+        frame = new JFrame("Chat Client - " + name);
         chatArea = new JTextArea(20, 40);
         textField = new JTextField();
 
@@ -100,6 +106,8 @@ public class ChatUI {
             out = new PrintWriter(socket.getOutputStream(), true);
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
+            out.println(name);
+
             new Thread(() -> {
                 try {
                     String message;
@@ -107,12 +115,12 @@ public class ChatUI {
                         chatArea.append(message + "\n");
                     }
                 } catch (IOException e) {
-                    System.out.println("Error: " + e);
+                    chatArea.append("Error: " + e + "\n");
                 }
             }).start();
 
         } catch (IOException e) {
-            System.out.println("Error: " + e);
+            chatArea.append("Error: " + e + "\n");
         }
     }
 
