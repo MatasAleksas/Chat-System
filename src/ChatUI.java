@@ -100,12 +100,13 @@ public class ChatUI {
      * the client-side chat application.
      */
     private void createUI() {
-        name = JOptionPane.showInputDialog(null, "Enter your name:", "Username", JOptionPane.PLAIN_MESSAGE);
-        if (name == null || name.trim().isEmpty()) {
-            name = "Anonymous";
+        this.name = JOptionPane.showInputDialog(null, "Enter your desired name:", "Username",
+                JOptionPane.PLAIN_MESSAGE);
+        if (this.name == null || this.name.trim().isEmpty()) {
+            this.name = "Anonymous" + random.nextInt(1000); // Make anonymous more unique
         }
 
-        frame = new JFrame("Chat Client - " + name);
+        frame = new JFrame("Chat Client - " + this.name);
         frame.setLocationRelativeTo(null);
         chatArea = new JTextPane();
         textField = new JTextField();
@@ -150,7 +151,29 @@ public class ChatUI {
             out = new PrintWriter(socket.getOutputStream(), true);
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            out.println(name);
+            // --- HANDSHAKE LOGIC on the CLIENT ---
+            while (true) {
+                String serverMessage = in.readLine();
+                if (serverMessage.equals("SUBMITNAME")) {
+                    out.println(this.name); // Send our desired name
+                } else if (serverMessage.equals("NAMEACCEPTED")) {
+                    this.frame.setTitle("Chat Client - " + this.name); // Name is good, set title
+                    textField.setEditable(true); // Allow user to type now
+                    break; // Exit handshake loop
+                } else if (serverMessage.equals("NAMETAKEN")) {
+                    this.name = JOptionPane.showInputDialog(frame, "Name '" + this.name +
+                            "' is taken. Please choose another:", "Username Taken", JOptionPane.ERROR_MESSAGE);
+                    if (this.name == null || this.name.trim().isEmpty()) {
+                        this.name = "Anonymous" + random.nextInt(1000);
+                    }
+                } else if (serverMessage.equals("INVALIDNAME")) {
+                    this.name = JOptionPane.showInputDialog(frame, "Name '" + this.name +
+                            "' is invalid. Please choose another:", "Username Invalid", JOptionPane.ERROR_MESSAGE);
+                    if (this.name == null || this.name.trim().isEmpty()) {
+                        this.name = "Anonymous" + random.nextInt(1000);
+                    }
+                }
+            }
 
             new Thread(() -> {
                 try {

@@ -27,3 +27,9 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+# Classes
+/src/ChatClient.class
+/src/ChatServer$ClientHandler.class
+/src/ChatServer.class
+/src/ChatUI.class

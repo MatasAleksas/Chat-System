@@ -1,6 +1,8 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The ChatServer class implements a simple server that listens for incoming client connections,
@@ -13,9 +15,8 @@ import java.util.*;
  * @version 1.0.0
  */
 public class ChatServer {
-    private static final Set<PrintWriter> clientWriters = Collections.synchronizedSet(new HashSet<>());
-    private static Map<Socket, String> clientsNames = new HashMap<>();
-    private static int clientCount = 0;
+    private static Map<String, PrintWriter> userWriters = new ConcurrentHashMap<>();
+    private static AtomicInteger clientCount = new AtomicInteger(0);
 
     /**
      * The main method serves as the entry point of the application and initiates a server that listens
@@ -34,7 +35,7 @@ public class ChatServer {
             while (true) {
                 // Wait for a client to connect
                 Socket s = serverSocket.accept();
-                clientCount++;
+                clientCount.incrementAndGet();
                 new ClientHandler(s).start();
             }
         } catch (IOException e) {
@@ -59,6 +60,7 @@ public class ChatServer {
         private final Socket socket;
         private PrintWriter out;
         private BufferedReader in;
+        String userName;
 
 
         /**
@@ -73,24 +75,16 @@ public class ChatServer {
         }
 
         /**
-         * Manages communication with a connected client. This method is responsible for
-         * reading messages from the client, broadcasting them to all connected clients,
-         * and managing necessary cleanup in case of errors or disconnections.
-         *
-         * The method:
-         * - Reads input streams from the client socket to fetch messages.
-         * - Writes messages to the output streams of all connected clients.
-         * - Handles exceptions related to input/output operations.
-         * - Cleans up resources, such as removing the client's writer from the global
-         *   collection and closing the client socket when the connection is terminated.
-         *
-         * This method runs in an infinite loop until the client disconnects or an error occurs.
-         *
-         * Implementation details include:
-         * - Using a synchronized set to store and manage client output streams.
-         * - Handling IOException to ensure graceful failure scenarios.
-         * - Closing the client socket and removing the associated writer from the
-         *   global collection during error handling or cleanup.
+         * Manages the connection for a single client from start to finish.
+         * <p>
+         * First, it handles a username handshake, repeatedly asking the client for a name
+         * until a unique one is provided.
+         * <p>
+         * Once registered, it enters a loop to read messages. It broadcasts regular
+         * messages to everyone and handles special commands like /whisper and /users.
+         * <p>
+         * If the client disconnects, a finally block ensures their information is cleaned
+         * up and the connection is closed.
          */
         public void run() {
             try {
@@ -98,59 +92,95 @@ public class ChatServer {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(), true);
 
-                String userName = in.readLine();
+                // --- HANDSHAKE LOGIC on the SERVER ---
+                while (true) {
+                    out.println("SUBMITNAME"); // Command: "Server is ready for a name"
+                    this.userName = in.readLine();
+                    if (this.userName == null || this.userName.trim().isEmpty() ||
+                            this.userName.toLowerCase().startsWith("/whisper") ||
+                            this.userName.toLowerCase().startsWith("/users")) {
+                        // Reject invalid names right away
+                        out.println("INVALIDNAME");
+                        continue;
+                    }
+
+                    // Atomically check if name exists and add it if it doesn't.
+                    // putIfAbsent returns null if the key is new.
+                    if (userWriters.putIfAbsent(this.userName, this.out) == null) {
+                        out.println("NAMEACCEPTED"); // Command: "Name is good"
+                        break; // Exit the handshake loop
+                    } else {
+                        out.println("NAMETAKEN"); // Command: "Name is rejected"
+                    }
+                }
 
                 // Add the client's writer to the global collection to broadcast messages to all clients
-                synchronized (clientWriters) {
-                    clientWriters.add(out);
-                }
-
-                synchronized (clientsNames) {
-                    clientsNames.put(socket, userName);
-                }
-
+                System.out.println(userName + " has joined.");
                 broadcast(userName + " has joined the chat.");
 
                 // Read messages from the client and broadcast them to all clients
                 String message;
                 while ((message = in.readLine()) != null) {
-                    System.out.println("[" + userName + "]: " + message);
-                    broadcast(userName + ": " + message);
+                    if (message.startsWith("/whisper")) {
+                        handleWhisper(message);
+                    } else if (message.startsWith("/users")) {
+                        listUsers();
+                    } else {
+                        broadcast(this.userName + ": " + message);
+                    }
                 }
             } catch (IOException e) {
-                System.out.println("Error: " + e);
+                System.out.println("Error with client " + this.userName + ": " + e);
             } finally {
                 // Cleanup resources and close the client socket
                 cleanup();
             }
         }
 
+        /**
+         * Parses a {@code /whisper} command to send a message to a single target user.
+         * The expected format is "/whisper <username> <message>".
+         * @param message The full command string received from the client.
+         */
+        private void handleWhisper(String message) {
+            System.out.println("ToDo: Implement");
+        }
+
+        /**
+         * Retrieves the list of all currently connected usernames and sends it back
+         * to the client who issued the {@code /users} command.
+         */
+        private void listUsers() {
+            System.out.println("ToDo: Implement");
+        }
+
+        /**
+         * Sends a given message to every client currently connected to the server.
+         * This is used for public chat messages and server-wide announcements.
+         * @param message The message to be broadcast to all users.
+         */
         private void broadcast(String message) {
-            synchronized (clientWriters) {
-                for (PrintWriter writer : clientWriters) {
-                    writer.println(message);
-                }
+            for (PrintWriter writer : userWriters.values()) {
+                writer.println(message);
             }
         }
 
+        /**
+         * Handles the complete deregistration of a client when they disconnect.
+         * It removes the user from the active user list, notifies other clients of
+         * their departure, and closes the socket connection to free up resources.
+         */
         private void cleanup() {
+            if (this.userName != null) {
+                System.out.println(userName + " is disconnecting.");
+
+                if (userWriters.remove(this.userName) != null) {
+                    clientCount.decrementAndGet();
+                    broadcast(userName + " has left the chat.");
+                }
+            }
+
             try {
-                String name = clientsNames.get(socket);
-                if (name != null) {
-                    broadcast(name + " has left the chat.");
-                    System.out.println(name + " disconnected.");
-                    clientCount--;
-                }
-
-                if (out != null) {
-                    synchronized (clientWriters) {
-                        clientWriters.remove(out);
-                    }
-                }
-
-                synchronized (clientsNames) {
-                    clientsNames.remove(socket);
-                }
                 socket.close();
             } catch (IOException e) {
                 System.out.println("Error: " + e);
