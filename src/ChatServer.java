@@ -116,7 +116,7 @@ public class ChatServer {
 
                 // Add the client's writer to the global collection to broadcast messages to all clients
                 System.out.println(userName + " has joined.");
-                broadcast(userName + " has joined the chat.");
+                broadcast("SERVER: " + userName + " has joined the chat.");
 
                 // Read messages from the client and broadcast them to all clients
                 String message;
@@ -130,7 +130,7 @@ public class ChatServer {
                     }
                 }
             } catch (IOException e) {
-                System.out.println("Error with client " + this.userName + ": " + e);
+                System.out.println("SERVER: Error with client " + this.userName + ": " + e);
             } finally {
                 // Cleanup resources and close the client socket
                 cleanup();
@@ -143,7 +143,33 @@ public class ChatServer {
          * @param message The full command string received from the client.
          */
         private void handleWhisper(String message) {
-            System.out.println("ToDo: Implement");
+            String[] parts = message.split(" ", 3);
+
+            // Invalid command setup
+            if (parts.length < 3) {
+                out.println("SERVER: Invalid Command. Use: '/whisper <user> <message>'");
+                return;
+            }
+
+            String targetUser = parts[1];
+            String privateMessage = parts[2];
+
+            // Checks if you sent a whisper to yourself
+            if (targetUser.equalsIgnoreCase(this.userName)) {
+                out.println("SERVER: You cant send a message to yourself.");
+                return;
+            }
+
+            PrintWriter targetWriter = userWriters.get(targetUser);
+
+            if (targetWriter != null) {
+                targetWriter.println("[Whisper from: " + this.userName + " ]: " + privateMessage);
+
+                // Confirmation back to user
+                out.println("[Whisper to " + targetUser + "]: " + privateMessage);
+            } else {
+                out.println("SERVER: Specified user '" + targetUser + "' was not found.");
+            }
         }
 
         /**
@@ -151,7 +177,10 @@ public class ChatServer {
          * to the client who issued the {@code /users} command.
          */
         private void listUsers() {
-            System.out.println("ToDo: Implement");
+            // The keySet() of our ConcurrentHashMap is a thread-safe view of all keys (usernames).
+            String userList = String.join(", ", userWriters.keySet());
+
+            out.println("SERVER: Active users (" + userWriters.size() + "): " + userList);
         }
 
         /**

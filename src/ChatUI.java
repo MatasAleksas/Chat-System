@@ -28,6 +28,7 @@ public class ChatUI {
     public Map<String, Style> userStyles = new HashMap<>();
     public static final int server_port = 5000;
     public String name;
+    private Style specialMessageStyle;
 
     private JFrame frame;
     private JTextPane chatArea;
@@ -55,6 +56,11 @@ public class ChatUI {
 
     private void appendMessageWithColor(String message) {
         try {
+            if (message.startsWith("[Whisper") || message.startsWith("SERVER:")) {
+                doc.insertString(doc.getLength(), message + "\n", specialMessageStyle);
+                return; // We've handled it, so we can exit the method.
+            }
+
             int sep = message.indexOf(':');
             if (sep != -1) {
                 String user = message.substring(0, sep);
@@ -114,6 +120,10 @@ public class ChatUI {
         chatArea.setEditable(false);
         doc = chatArea.getStyledDocument();
 
+        specialMessageStyle = chatArea.addStyle("special", null);
+        StyleConstants.setForeground(specialMessageStyle, Color.GRAY);
+        StyleConstants.setItalic(specialMessageStyle, true);
+
         JScrollPane scrollPane = new JScrollPane(chatArea);
         scrollPane.setPreferredSize(new Dimension(300, 400));
 
@@ -155,6 +165,7 @@ public class ChatUI {
             while (true) {
                 String serverMessage = in.readLine();
                 if (serverMessage.equals("SUBMITNAME")) {
+                    this.name = this.name.strip(); // Get rid of leading and trailing whitespace
                     out.println(this.name); // Send our desired name
                 } else if (serverMessage.equals("NAMEACCEPTED")) {
                     this.frame.setTitle("Chat Client - " + this.name); // Name is good, set title
