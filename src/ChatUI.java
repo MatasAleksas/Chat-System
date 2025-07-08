@@ -24,7 +24,7 @@ import java.util.Random;
  * @version 1.0.0
  */
 public class ChatUI {
-    public static final String server_address = "localhost"; //3.142.249.27
+    public static final String server_address = "3.142.249.27"; //3.142.249.27
     public Map<String, Style> userStyles = new HashMap<>();
     public static final int server_port = 5000;
     public String name;
