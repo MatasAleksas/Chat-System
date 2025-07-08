@@ -24,7 +24,7 @@ import java.util.Random;
  * @version 1.0.0
  */
 public class ChatUI {
-    public static final String server_address = "3.142.249.27";
+    public static final String server_address = "localhost"; //3.142.249.27
     public Map<String, Style> userStyles = new HashMap<>();
     public static final int server_port = 5000;
     public String name;
@@ -61,15 +61,22 @@ public class ChatUI {
                 return; // We've handled it, so we can exit the method.
             }
 
-            int sep = message.indexOf(':');
-            if (sep != -1) {
-                String user = message.substring(0, sep);
-                String msg = message.substring(sep + 2);
+            int timestampEnd = message.indexOf(']');
+            int userMessageSep =  message.indexOf(':', timestampEnd);
 
-                Style style = chatArea.addStyle(user, null);
-                StyleConstants.setForeground(style, getUserColor(user));
-                doc.insertString(doc.getLength(), user + ": ", style);
-                doc.insertString(doc.getLength(), msg + "\n", null);
+            int sep = message.indexOf(':');
+            if (userMessageSep != -1 && timestampEnd != -1) {
+                String timestampPart = message.substring(0, timestampEnd + 2);
+                String usernamePart = message.substring(timestampEnd + 2, userMessageSep);
+                String messagePart = message.substring(userMessageSep);
+
+                doc.insertString(doc.getLength(), timestampPart, null);
+
+                Style userStyle = chatArea.addStyle(usernamePart, null);
+                StyleConstants.setForeground(userStyle, getUserColor(usernamePart));
+                doc.insertString(doc.getLength(), usernamePart, userStyle);
+
+                doc.insertString(doc.getLength(), messagePart + "\n", null);
             } else {
                 doc.insertString(doc.getLength(), message + "\n", null);
             }

@@ -3,6 +3,8 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * The ChatServer class implements a simple server that listens for incoming client connections,
@@ -62,6 +64,9 @@ public class ChatServer {
         private BufferedReader in;
         String userName;
 
+        // Formats the date to a 24-hour clock, do 'hh:mm a' for AM/PM time
+        private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("hh:mm a");
+
 
         /**
          * Constructs a new ClientHandler instance and initializes it with the specified
@@ -118,7 +123,7 @@ public class ChatServer {
                 System.out.println(userName + " has joined.");
                 broadcast("SERVER: " + userName + " has joined the chat.");
 
-                // Read messages from the client and broadcast them to all clients
+                // Read messages from the client and broadcast them to all clients with a timestamp
                 String message;
                 while ((message = in.readLine()) != null) {
                     if (message.startsWith("/whisper")) {
@@ -126,7 +131,8 @@ public class ChatServer {
                     } else if (message.startsWith("/users")) {
                         listUsers();
                     } else {
-                        broadcast(this.userName + ": " + message);
+                        String timestamp = LocalDateTime.now().format(formatter);
+                        broadcast("[" + timestamp + "] " +  this.userName + ": " + message);
                     }
                 }
             } catch (IOException e) {
@@ -163,10 +169,12 @@ public class ChatServer {
             PrintWriter targetWriter = userWriters.get(targetUser);
 
             if (targetWriter != null) {
-                targetWriter.println("[Whisper from: " + this.userName + " ]: " + privateMessage);
+                String timestamp = LocalDateTime.now().format(formatter);
+                targetWriter.println("[Whisper at " + timestamp + " from: " + this.userName + "]: " + privateMessage);
 
                 // Confirmation back to user
-                out.println("[Whisper to " + targetUser + "]: " + privateMessage);
+                out.println("[Whisper at " + timestamp + " to " + targetUser + "]: " + privateMessage);
+
             } else {
                 out.println("SERVER: Specified user '" + targetUser + "' was not found.");
             }
