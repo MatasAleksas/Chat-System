@@ -205,7 +205,7 @@ public class ChatServer {
 
                 if (userWriters.remove(this.userName) != null) {
                     clientCount.decrementAndGet();
-                    broadcast(userName + " has left the chat.");
+                    broadcast("SERVER: " + userName + " has left the chat.");
                 }
             }
 
