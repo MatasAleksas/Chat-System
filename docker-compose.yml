@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  chat-server:
+    # 'build: .' tells Docker Compose to look for a Dockerfile in the current directory and build it
+    build: .
+    container_name: chat-server-container
+    ports:
+      # Map port 5000 on the host machine to port 5000 inside the container
+      # Format is "HOST:CONTAINER"
+      - "5000:5000"
+    # This ensures the container restarts automatically if it crashes
+    restart: unless-stopped
